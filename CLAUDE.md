@@ -28,6 +28,8 @@ uv run python -m pytest tests/test_auth.py  # run a single file
 
 When creating a PR, bump the patch version in `pyproject.toml` (the `version` field) and include that change in the PR.
 
+To publish a release, push a git tag matching the version (e.g. `git tag v0.2.1 && git push origin v0.2.1`). This triggers CI to publish to PyPI and create a GitHub Release with auto-generated notes listing the PRs since the previous tag.
+
 ## Style
 
 - Python 3.11+, no type-checker configured
