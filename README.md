@@ -1,57 +1,59 @@
 # Expedait CLI
 
+[![PyPI](https://img.shields.io/pypi/v/expedait-cli)](https://pypi.org/project/expedait-cli/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-Command-line interface for [Expedait](https://expedait.com) — download project specs and post comments from AI coding agents.
+CLI for [Expedait](https://expedait.org) — lets AI coding agents download project specs and post comments via the Expedait API.
 
-## Quickstart
+## Usage
 
-```bash
-# Install with uv (recommended)
-uv pip install expedait-cli
+### Run with `uvx` (recommended)
 
-# Or install from source
-git clone https://github.com/Expedait/expedait-cli.git
-cd expedait-cli
-uv sync
-
-# Login to your Expedait instance
-expedait auth login
-
-# List your projects
-expedait projects list
-
-# Download all specs for a project
-expedait projects download 1 --output-dir ./specs
-```
-
-## Installation
-
-### From PyPI
+No installation needed — run directly:
 
 ```bash
-pip install expedait-cli
+uvx expedait-cli auth login
+uvx expedait-cli projects list
+uvx expedait-cli projects download 1
 ```
 
-### From source
+### Add as a dev dependency
+
+If your AI agent needs it available in the project environment:
 
 ```bash
-git clone https://github.com/Expedait/expedait-cli.git
-cd expedait-cli
-uv sync
+uv add --group dev expedait-cli
 ```
 
-This creates a virtual environment with the `expedait` command available.
+Then reference it in your agent configuration (e.g. `CLAUDE.md`, `.cursor/rules`, etc.).
 
-**Requirements:** Python 3.11+
+## Project Setup
+
+After authenticating, run `init` inside your project directory to store your tenant and project settings locally:
+
+```bash
+uvx expedait-cli init
+```
+
+This creates `.expedait/settings.json` with your `tenant_id` and `project_id`. Add `.expedait/` to your `.gitignore`.
+
+Once initialized, commands that need a project ID will resolve it automatically. Downloads default to `.expedait/context/`:
+
+```bash
+expedait projects download              # downloads to .expedait/context/
+expedait pages list                     # no --project-id needed
+expedait pages download 42              # downloads to .expedait/context/
+```
+
+**Resolution order for tenant/project:** CLI flag > env var > `.expedait/settings.json` > `~/.expedait/config.json`.
 
 ## Authentication
 
 ### Interactive login
 
 ```bash
-expedait auth login
+uvx expedait-cli auth login
 ```
 
 Prompts for login method (SSO or email/password). Stores credentials in `~/.expedait/config.json`.
@@ -60,7 +62,7 @@ Prompts for login method (SSO or email/password). Stores credentials in `~/.expe
 
 ```bash
 export EXPEDAIT_TOKEN="your-jwt-token"
-export EXPEDAIT_API_URL="https://your-instance.expedait.com"
+export EXPEDAIT_API_URL="https://your-instance.expedait.org"
 export EXPEDAIT_TENANT_ID=1
 ```
 
@@ -81,8 +83,9 @@ expedait auth logout      # Clear stored credentials
 ```bash
 expedait projects list                              # List all projects
 expedait projects get PROJECT_ID                    # Get project details
-expedait projects download PROJECT_ID               # Download all pages as ZIP
-expedait projects download PROJECT_ID --output-dir ./specs  # Extract to directory
+expedait projects download PROJECT_ID               # Extract markdown to .expedait/context/
+expedait projects download PROJECT_ID --download-format json  # Download as JSON
+expedait projects download PROJECT_ID --output-dir ./specs    # Extract to custom directory
 ```
 
 ### Pages
@@ -91,7 +94,8 @@ expedait projects download PROJECT_ID --output-dir ./specs  # Extract to directo
 expedait pages list --project-id PROJECT_ID         # List pages in a project
 expedait pages get PAGE_ID                          # Print page markdown content
 expedait pages full PAGE_ID                         # Full context (content + comments + deps)
-expedait pages download PAGE_ID --output-dir ./out  # Download page as ZIP
+expedait pages download PAGE_ID                     # Extract markdown to .expedait/context/
+expedait pages download PAGE_ID --download-format json  # Download as JSON
 ```
 
 ### Comments
@@ -108,7 +112,7 @@ expedait comments resolve PAGE_ID COMMENT_ID        # Mark as resolved
 expedait comments delete PAGE_ID COMMENT_ID         # Delete a comment
 ```
 
-## Global Options
+### Global Options
 
 ```bash
 expedait --api-url https://host:8000 ...    # Override API URL
@@ -133,10 +137,6 @@ uv sync --group dev
 uv run python -m pytest
 ```
 
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE)

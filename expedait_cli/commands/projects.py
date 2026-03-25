@@ -8,7 +8,7 @@ from pathlib import Path
 
 import click
 
-from ..auth import resolve_api_url, resolve_tenant_id, resolve_token
+from ..auth import resolve_api_url, resolve_project_id, resolve_tenant_id, resolve_token
 from ..client import ExpedaitClient
 from ..formatters import output
 
@@ -60,14 +60,20 @@ def get_project(ctx: click.Context, project_id: int) -> None:
 
 
 @projects.command("download")
-@click.argument("project_id", type=int)
-@click.option("--output-dir", type=click.Path(), default=".", help="Extract to directory.")
+@click.argument("project_id", type=int, required=False, default=None)
+@click.option("--output-dir", type=click.Path(), default=".expedait/context", help="Extract to directory.")
+@click.option("--download-format", type=click.Choice(["markdown", "json"]), default="markdown", help="Content format.")
 @click.pass_context
-def download_project(ctx: click.Context, project_id: int, output_dir: str) -> None:
+def download_project(ctx: click.Context, project_id: int | None, output_dir: str, download_format: str) -> None:
     """Download all project pages as a ZIP and extract."""
+    project_id = resolve_project_id(project_id)
+    if project_id is None:
+        raise click.UsageError(
+            "No project ID given. Pass PROJECT_ID or run 'expedait init'."
+        )
     client = _make_client(ctx)
     try:
-        data = client.download_project(project_id)
+        data = client.download_project(project_id, fmt=download_format)
     finally:
         client.close()
 

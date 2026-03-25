@@ -6,6 +6,7 @@ import click
 
 from . import __version__
 from .commands.auth_cmd import auth
+from .commands.init_cmd import init
 from .commands.projects import projects
 from .commands.pages import pages
 from .commands.comments import comments
@@ -26,6 +27,7 @@ def cli(ctx: click.Context, api_url: str | None, tenant_id: int | None, fmt: str
 
 
 cli.add_command(auth)
+cli.add_command(init)
 cli.add_command(projects)
 cli.add_command(pages)
 cli.add_command(comments)

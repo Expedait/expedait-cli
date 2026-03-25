@@ -119,3 +119,35 @@ class TestPagesDownload:
 
             assert result.exit_code == 0
             assert (Path(dest) / "vision.md").read_text() == "# Vision"
+
+    def test_default_format_is_markdown(self, tmp_path: Path):
+        zip_bytes = _make_zip({"vision.md": "# Vision"})
+        mock_download = MagicMock(return_value=zip_bytes)
+        mock_instance = MagicMock(download_page=mock_download, close=MagicMock())
+        with patch("expedait_cli.commands.pages.resolve_token", return_value="tok"), \
+             patch("expedait_cli.commands.pages.resolve_api_url", return_value="http://x"), \
+             patch("expedait_cli.commands.pages.resolve_tenant_id", return_value=1), \
+             patch("expedait_cli.commands.pages.ExpedaitClient", return_value=mock_instance):
+
+            runner = CliRunner()
+            dest = str(tmp_path / "out")
+            result = runner.invoke(cli, ["pages", "download", "1", "--output-dir", dest])
+
+            assert result.exit_code == 0
+            mock_download.assert_called_once_with(1, fmt="markdown")
+
+    def test_json_format(self, tmp_path: Path):
+        zip_bytes = _make_zip({"vision.json": '{"title": "Vision"}'})
+        mock_download = MagicMock(return_value=zip_bytes)
+        mock_instance = MagicMock(download_page=mock_download, close=MagicMock())
+        with patch("expedait_cli.commands.pages.resolve_token", return_value="tok"), \
+             patch("expedait_cli.commands.pages.resolve_api_url", return_value="http://x"), \
+             patch("expedait_cli.commands.pages.resolve_tenant_id", return_value=1), \
+             patch("expedait_cli.commands.pages.ExpedaitClient", return_value=mock_instance):
+
+            runner = CliRunner()
+            dest = str(tmp_path / "out")
+            result = runner.invoke(cli, ["pages", "download", "1", "--output-dir", dest, "--download-format", "json"])
+
+            assert result.exit_code == 0
+            mock_download.assert_called_once_with(1, fmt="json")
