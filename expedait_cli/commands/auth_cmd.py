@@ -117,7 +117,6 @@ def _login_sso(api_url: str) -> tuple[str, dict]:
 def login(ctx: click.Context) -> None:
     """Login interactively via browser SSO or email/password."""
     api_url = resolve_api_url(ctx.obj.get("api_url"))
-    api_url = click.prompt("API URL", default=api_url)
 
     method = click.prompt(
         "Login method",

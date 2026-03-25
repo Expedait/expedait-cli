@@ -29,7 +29,7 @@ class TestAuthLoginPassword:
             result = runner.invoke(
                 cli,
                 ["auth", "login"],
-                input="https://app.expedait.org\npassword\nuser@test.com\npass123\n",
+                input="password\nuser@test.com\npass123\n",
             )
 
             assert result.exit_code == 0
@@ -46,7 +46,7 @@ class TestAuthLoginPassword:
             result = runner.invoke(
                 cli,
                 ["auth", "login"],
-                input="https://app.expedait.org\npassword\nbad@test.com\nwrong\n",
+                input="password\nbad@test.com\nwrong\n",
             )
 
             assert result.exit_code != 0
@@ -90,7 +90,7 @@ class TestAuthLoginSSO:
             result = runner.invoke(
                 cli,
                 ["auth", "login"],
-                input="https://app.expedait.org\nsso\n",
+                input="sso\n",
             )
 
             assert result.exit_code == 0
@@ -110,7 +110,7 @@ class TestAuthLoginSSO:
             result = runner.invoke(
                 cli,
                 ["auth", "login"],
-                input="https://app.expedait.org\nsso\n",
+                input="sso\n",
             )
 
             assert result.exit_code != 0
@@ -139,7 +139,7 @@ class TestAuthLoginSSO:
             result = runner.invoke(
                 cli,
                 ["auth", "login"],
-                input="https://app.expedait.org\nsso\n",
+                input="sso\n",
             )
 
             assert result.exit_code != 0
@@ -169,7 +169,7 @@ class TestAuthLoginMultipleTenants:
             result = runner.invoke(
                 cli,
                 ["auth", "login"],
-                input="https://app.expedait.org\npassword\nuser@test.com\npass123\n2\n",
+                input="password\nuser@test.com\npass123\n2\n",
             )
 
             assert result.exit_code == 0
