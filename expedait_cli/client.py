@@ -96,8 +96,10 @@ class ExpedaitClient:
     def get_workspace(self, project_id: int) -> dict[str, Any]:
         return self._request("GET", f"/api/v1/projects/{project_id}/workspace")
 
-    def download_project(self, project_id: int) -> bytes:
-        resp = self._request_raw("GET", f"/api/v1/projects/{project_id}/download")
+    def download_project(self, project_id: int, fmt: str = "markdown") -> bytes:
+        resp = self._request_raw(
+            "GET", f"/api/v1/projects/{project_id}/download", params={"format": fmt},
+        )
         return resp.content
 
     # -- pages ------------------------------------------------------------
@@ -111,8 +113,10 @@ class ExpedaitClient:
     def get_page_full(self, page_id: int) -> dict[str, Any]:
         return self._request("GET", f"/api/v1/pages/{page_id}/full")
 
-    def download_page(self, page_id: int) -> bytes:
-        resp = self._request_raw("GET", f"/api/v1/pages/{page_id}/download")
+    def download_page(self, page_id: int, fmt: str = "markdown") -> bytes:
+        resp = self._request_raw(
+            "GET", f"/api/v1/pages/{page_id}/download", params={"format": fmt},
+        )
         return resp.content
 
     # -- comments ---------------------------------------------------------

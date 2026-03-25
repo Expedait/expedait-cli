@@ -89,3 +89,35 @@ class TestProjectsDownload:
             assert result.exit_code == 0
             assert (Path(dest) / "page1.md").read_text() == "# Hello"
             assert (Path(dest) / "page2.md").read_text() == "# World"
+
+    def test_default_format_is_markdown(self, tmp_path: Path):
+        zip_bytes = _make_zip({"page.md": "# Hello"})
+        mock_download = MagicMock(return_value=zip_bytes)
+        mock_instance = MagicMock(download_project=mock_download, close=MagicMock())
+        with patch("expedait_cli.commands.projects.resolve_token", return_value="tok"), \
+             patch("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"), \
+             patch("expedait_cli.commands.projects.resolve_tenant_id", return_value=1), \
+             patch("expedait_cli.commands.projects.ExpedaitClient", return_value=mock_instance):
+
+            runner = CliRunner()
+            dest = str(tmp_path / "out")
+            result = runner.invoke(cli, ["projects", "download", "1", "--output-dir", dest])
+
+            assert result.exit_code == 0
+            mock_download.assert_called_once_with(1, fmt="markdown")
+
+    def test_json_format(self, tmp_path: Path):
+        zip_bytes = _make_zip({"page.json": '{"title": "Hello"}'})
+        mock_download = MagicMock(return_value=zip_bytes)
+        mock_instance = MagicMock(download_project=mock_download, close=MagicMock())
+        with patch("expedait_cli.commands.projects.resolve_token", return_value="tok"), \
+             patch("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"), \
+             patch("expedait_cli.commands.projects.resolve_tenant_id", return_value=1), \
+             patch("expedait_cli.commands.projects.ExpedaitClient", return_value=mock_instance):
+
+            runner = CliRunner()
+            dest = str(tmp_path / "out")
+            result = runner.invoke(cli, ["projects", "download", "1", "--output-dir", dest, "--download-format", "json"])
+
+            assert result.exit_code == 0
+            mock_download.assert_called_once_with(1, fmt="json")

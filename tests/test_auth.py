@@ -1,4 +1,4 @@
-"""Tests for token resolution logic."""
+"""Tests for token and ID resolution logic."""
 
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 import pytest
 
-from expedait_cli.auth import resolve_token, resolve_api_url, resolve_tenant_id
+from expedait_cli.auth import resolve_token, resolve_api_url, resolve_tenant_id, resolve_project_id
 
 
 class TestResolveToken:
@@ -48,8 +48,35 @@ class TestResolveTenantId:
         monkeypatch.setenv("EXPEDAIT_TENANT_ID", "7")
         assert resolve_tenant_id(None, tmp_path / "missing.json") == 7
 
-    def test_config_file(self, saved_config: Path):
+    def test_local_settings_before_config(self, tmp_path: Path):
+        """Local .expedait/settings.json takes priority over global config."""
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"tenant_id": 99}))
+        config = tmp_path / "config.json"
+        config.write_text(json.dumps({"tenant_id": 1}))
+        assert resolve_tenant_id(None, config, settings) == 99
+
+    def test_config_file_fallback(self, saved_config: Path):
         assert resolve_tenant_id(None, saved_config) == 1
 
     def test_none_when_missing(self, tmp_path: Path):
         assert resolve_tenant_id(None, tmp_path / "missing.json") is None
+
+
+class TestResolveProjectId:
+    def test_explicit_wins(self, tmp_path: Path):
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"project_id": 5}))
+        assert resolve_project_id(42, settings) == 42
+
+    def test_env_var(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("EXPEDAIT_PROJECT_ID", "8")
+        assert resolve_project_id(None, tmp_path / "missing.json") == 8
+
+    def test_local_settings(self, tmp_path: Path):
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"project_id": 5}))
+        assert resolve_project_id(None, settings) == 5
+
+    def test_none_when_missing(self, tmp_path: Path):
+        assert resolve_project_id(None, tmp_path / "missing.json") is None

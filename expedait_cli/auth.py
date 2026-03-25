@@ -7,6 +7,7 @@ import os
 import click
 
 from .config import load_config
+from .settings import load_settings
 
 
 def resolve_token(config_path=None) -> str:
@@ -41,15 +42,42 @@ def resolve_api_url(explicit: str | None = None, config_path=None) -> str:
     return "https://app.expedait.org"
 
 
-def resolve_tenant_id(explicit: int | None = None, config_path=None) -> int | None:
-    """Return tenant ID from flag > env > config."""
+def resolve_tenant_id(
+    explicit: int | None = None,
+    config_path=None,
+    settings_path=None,
+) -> int | None:
+    """Return tenant ID from flag > env > local settings > config."""
     if explicit is not None:
         return explicit
     env = os.environ.get("EXPEDAIT_TENANT_ID")
     if env:
         return int(env)
+    # Local project settings
+    settings = load_settings(settings_path)
+    tid = settings.get("tenant_id")
+    if tid is not None:
+        return int(tid)
+    # Global config
     cfg = load_config(config_path)
     tid = cfg.get("tenant_id")
     if tid is not None:
         return int(tid)
+    return None
+
+
+def resolve_project_id(
+    explicit: int | None = None,
+    settings_path=None,
+) -> int | None:
+    """Return project ID from flag > env > local settings."""
+    if explicit is not None:
+        return explicit
+    env = os.environ.get("EXPEDAIT_PROJECT_ID")
+    if env:
+        return int(env)
+    settings = load_settings(settings_path)
+    pid = settings.get("project_id")
+    if pid is not None:
+        return int(pid)
     return None
