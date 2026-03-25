@@ -24,6 +24,10 @@ uv run python -m pytest tests/test_auth.py  # run a single file
 - `expedait_cli/` — source: `main.py` (Click entrypoint), `client.py` (httpx API client), `auth.py`, `config.py`, `formatters.py`, `commands/` (Click subcommands)
 - `tests/` — pytest tests using `pytest-httpx` for mocking HTTP
 
+## Versioning
+
+When creating a PR, bump the patch version in `pyproject.toml` (the `version` field) and include that change in the PR.
+
 ## Style
 
 - Python 3.11+, no type-checker configured
