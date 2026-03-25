@@ -54,7 +54,7 @@ This creates a virtual environment with the `expedait` command available.
 expedait auth login
 ```
 
-Prompts for API URL, email, and password. Stores credentials in `~/.expedait/config.json`.
+Prompts for login method (SSO or email/password). Stores credentials in `~/.expedait/config.json`.
 
 ### Environment variables (CI / agents)
 
