@@ -6,6 +6,15 @@
 
 CLI for [Expedait](https://expedait.org) — lets AI coding agents download project specs and post comments via the Expedait API.
 
+## The model
+
+Expedait organizes specs around four primitives:
+
+- **Objectives** — top-level goals. An objective is itself a deliverable that nests child deliverables beneath it (`parent_deliverable_id`).
+- **Deliverables** — the individual spec documents (formerly "pages").
+- **Context** — the assembled LLM context for one deliverable: dependency deliverables, linked external sources, uploaded files, and aggregate sizes.
+- **Review** — scoring findings raised on a deliverable: severity, description, the criteria that flagged them, and anchor offsets.
+
 ## Usage
 
 ### Run with `uvx` (recommended)
@@ -42,8 +51,8 @@ Once initialized, commands that need a project ID will resolve it automatically.
 
 ```bash
 expedait projects download              # downloads to .expedait/context/
-expedait pages list                     # no --project-id needed
-expedait pages download 42              # downloads to .expedait/context/
+expedait deliverables list              # no --project-id needed
+expedait deliverables download 42       # downloads to .expedait/context/
 ```
 
 **Resolution order for tenant/project:** CLI flag > env var > `.expedait/settings.json` > `~/.expedait/config.json`.
@@ -81,36 +90,65 @@ expedait auth logout      # Clear stored credentials
 ### Projects
 
 ```bash
-expedait projects list                              # List all projects
-expedait projects get PROJECT_ID                    # Get project details
-expedait projects download PROJECT_ID               # Extract markdown to .expedait/context/
-expedait projects download PROJECT_ID --download-format json  # Download as JSON
-expedait projects download PROJECT_ID --output-dir ./specs    # Extract to custom directory
+expedait projects list                       # List all projects
+expedait projects get PROJECT_ID             # Get project details
+expedait projects download PROJECT_ID        # Extract all deliverables to .expedait/context/
+expedait projects download PROJECT_ID --output-dir ./specs  # Extract to a custom directory
 ```
 
-### Pages
+### Deliverables
 
 ```bash
-expedait pages list --project-id PROJECT_ID         # List pages in a project
-expedait pages get PAGE_ID                          # Print page markdown content
-expedait pages full PAGE_ID                         # Full context (content + comments + deps)
-expedait pages download PAGE_ID                     # Extract markdown to .expedait/context/
-expedait pages download PAGE_ID --download-format json  # Download as JSON
+expedait deliverables list --project-id PROJECT_ID   # List deliverables in a project
+expedait deliverables get DELIVERABLE_ID             # Print deliverable markdown content
+expedait deliverables get DELIVERABLE_ID --include meta,content,dependencies,score
+expedait deliverables inspect DELIVERABLE_ID         # Full context (content + comments + deps + lock)
+expedait deliverables download DELIVERABLE_ID        # Extract to .expedait/context/
+```
+
+`--include` accepts a comma-separated subset of: `meta`, `content`, `template`,
+`requirements`, `writer_instructions`, `dependencies`, `external_context`,
+`score`, `comments`, `versions`. It defaults to `content`. `meta` surfaces
+`parent_deliverable_id` (non-null ⇒ this deliverable is a child nested under an
+objective).
+
+### Objectives
+
+```bash
+expedait objectives overview DELIVERABLE_ID   # Objective metadata + full descendant tree
+```
+
+### Context
+
+```bash
+expedait context get DELIVERABLE_ID           # The LLM context snapshot for one deliverable
+```
+
+### Review
+
+```bash
+expedait review issues DELIVERABLE_ID                 # List scoring findings (default: all)
+expedait review issues DELIVERABLE_ID --state open    # Only open findings
+expedait review mute ISSUE_ID --note "by design"      # Mute a finding
+expedait review mute ISSUE_ID --unmute                # Unmute a finding
 ```
 
 ### Comments
 
 ```bash
-expedait comments list PAGE_ID                      # List comments on a page
-expedait comments create PAGE_ID \                  # Create a comment
+expedait comments list DELIVERABLE_ID                 # List comments on a deliverable
+expedait comments create DELIVERABLE_ID \             # Create a comment (offsets resolved automatically)
   --text "Comment content" \
-  --selected-text "text from page" \
-  --start-offset 100 \
-  --end-offset 120 \
-  --source-page-id 5                                # Optional: agent's source page
-expedait comments resolve PAGE_ID COMMENT_ID        # Mark as resolved
-expedait comments delete PAGE_ID COMMENT_ID         # Delete a comment
+  --selected-text "text from the deliverable" \
+  --source-deliverable-id 5                            # Optional: agent's source deliverable
+expedait comments resolve DELIVERABLE_ID COMMENT_ID   # Mark as resolved
+expedait comments delete DELIVERABLE_ID COMMENT_ID    # Delete a comment
 ```
+
+Only `--text` and `--selected-text` are required; the CLI locates the selected
+text in the deliverable to compute anchor offsets. Pass `--start-offset` and
+`--end-offset` to anchor explicitly (e.g. when the selected text appears more
+than once).
 
 ### Global Options
 
@@ -123,6 +161,10 @@ expedait --version                          # Show version
 ```
 
 Output format defaults to `text` when connected to a terminal, `json` when piped.
+
+> **Migration note:** the `pages` command group has been renamed to
+> `deliverables`. `expedait pages …` still works for one release (it warns and
+> forwards) but will be removed.
 
 ## Agent Skills
 

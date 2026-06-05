@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "expedait-cli"
-version = "0.2.2"
+version = "0.3.0"
 description = "CLI for Expedait project management — download specs, post comments"
 readme = "README.md"
 license = "Apache-2.0"
@@ -16,6 +16,8 @@ dependencies = [
 
 [project.scripts]
 expedait = "expedait_cli.main:cli"
+# Alias so `uvx expedait-cli ...` keeps working (package name == script name).
+expedait-cli = "expedait_cli.main:cli"
 
 [dependency-groups]
 dev = [

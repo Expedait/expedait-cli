@@ -8,7 +8,10 @@ from . import __version__
 from .commands.auth_cmd import auth
 from .commands.init_cmd import init
 from .commands.projects import projects
-from .commands.pages import pages
+from .commands.deliverables import deliverables, pages
+from .commands.objectives import objectives
+from .commands.context_cmd import context
+from .commands.review import review
 from .commands.comments import comments
 
 
@@ -29,5 +32,10 @@ def cli(ctx: click.Context, api_url: str | None, tenant_id: int | None, fmt: str
 cli.add_command(auth)
 cli.add_command(init)
 cli.add_command(projects)
-cli.add_command(pages)
+cli.add_command(deliverables)
+cli.add_command(objectives)
+cli.add_command(context)
+cli.add_command(review)
 cli.add_command(comments)
+# Deprecated alias — warns and forwards to `deliverables`. Drop next release.
+cli.add_command(pages)
