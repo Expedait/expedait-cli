@@ -62,11 +62,35 @@ class TestClientMethods:
         assert result == [{"id": 1, "name": "P1"}]
         c.close()
 
-    def test_get_page(self, httpx_mock):
+    def test_get_deliverable(self, httpx_mock):
         httpx_mock.add_response(json={"id": 1, "content": "# Hello"})
         c = ExpedaitClient("http://x", "tok")
-        result = c.get_page(1)
+        result = c.get_deliverable(1)
         assert result["content"] == "# Hello"
+        c.close()
+
+    def test_objective_overview_400_raises(self, httpx_mock):
+        httpx_mock.add_response(status_code=400, json={"detail": "not an objective"})
+        c = ExpedaitClient("http://x", "tok")
+        with pytest.raises(click.UsageError, match="not an objective"):
+            c.get_objective_overview(1)
+        c.close()
+
+    def test_mute_review_issue_payload(self, httpx_mock):
+        httpx_mock.add_response(json={"id": 7, "state": "muted"})
+        c = ExpedaitClient("http://x", "tok")
+        result = c.mute_review_issue(7, muted=True, note="by design")
+        assert result["state"] == "muted"
+        request = httpx_mock.get_request()
+        assert request.method == "PATCH"
+        import json as _json
+        assert _json.loads(request.content) == {"state": "muted", "muted_note": "by design"}
+        c.close()
+
+    def test_delete_comment_no_content(self, httpx_mock):
+        httpx_mock.add_response(status_code=204)
+        c = ExpedaitClient("http://x", "tok")
+        assert c.delete_comment(1, 2) is None
         c.close()
 
     def test_download_project(self, httpx_mock):
