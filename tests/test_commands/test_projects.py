@@ -90,10 +90,15 @@ class TestProjectsDownload:
             assert (Path(dest) / "page1.md").read_text() == "# Hello"
             assert (Path(dest) / "page2.md").read_text() == "# World"
 
-    def test_default_format_is_markdown(self, tmp_path: Path):
+    def test_calls_download_with_project_id_only(self, tmp_path: Path):
+        # The backend /download takes no format param; the client method is
+        # download_project(project_id). Mock with the real signature (autospec)
+        # so a future signature drift is caught here instead of at runtime —
+        # the original tests mocked it loosely and let a `fmt=` crash ship.
         zip_bytes = _make_zip({"page.md": "# Hello"})
-        mock_download = MagicMock(return_value=zip_bytes)
-        mock_instance = MagicMock(download_project=mock_download, close=MagicMock())
+        from expedait_cli.client import ExpedaitClient
+        mock_instance = MagicMock(spec=ExpedaitClient)
+        mock_instance.download_project.return_value = zip_bytes
         with patch("expedait_cli.commands.projects.resolve_token", return_value="tok"), \
              patch("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"), \
              patch("expedait_cli.commands.projects.resolve_tenant_id", return_value=1), \
@@ -104,20 +109,36 @@ class TestProjectsDownload:
             result = runner.invoke(cli, ["projects", "download", "1", "--output-dir", dest])
 
             assert result.exit_code == 0
-            mock_download.assert_called_once_with(1, fmt="markdown")
+            mock_instance.download_project.assert_called_once_with(1)
 
-    def test_json_format(self, tmp_path: Path):
-        zip_bytes = _make_zip({"page.json": '{"title": "Hello"}'})
-        mock_download = MagicMock(return_value=zip_bytes)
-        mock_instance = MagicMock(download_project=mock_download, close=MagicMock())
+    def test_removed_download_format_option_is_rejected(self, tmp_path: Path):
+        # --download-format never worked (backend has no format param); the dead
+        # option was removed. Passing it should now be a usage error, not a crash.
         with patch("expedait_cli.commands.projects.resolve_token", return_value="tok"), \
              patch("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"), \
              patch("expedait_cli.commands.projects.resolve_tenant_id", return_value=1), \
-             patch("expedait_cli.commands.projects.ExpedaitClient", return_value=mock_instance):
+             _patch_client("download_project", _make_zip({"p.md": "x"})):
+            result = CliRunner().invoke(
+                cli, ["projects", "download", "1", "--download-format", "json"],
+            )
+            assert result.exit_code != 0
+            assert "no such option" in result.output.lower()
 
-            runner = CliRunner()
-            dest = str(tmp_path / "out")
-            result = runner.invoke(cli, ["projects", "download", "1", "--output-dir", dest, "--download-format", "json"])
 
-            assert result.exit_code == 0
-            mock_download.assert_called_once_with(1, fmt="json")
+class TestWorkspace:
+    def test_workspace_json(self):
+        from unittest.mock import patch as _p, MagicMock as _M
+        from click.testing import CliRunner as _R
+        from expedait_cli.main import cli as _cli
+        data = {"phases": [{"name": "Discovery", "deliverables": []}]}
+        mock = _M(get_workspace=_M(return_value=data), close=_M())
+        with _p("expedait_cli.commands.projects.resolve_token", return_value="t"), \
+             _p("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"), \
+             _p("expedait_cli.commands.projects.resolve_tenant_id", return_value=1), \
+             _p("expedait_cli.commands.projects.resolve_project_id", side_effect=lambda x: x), \
+             _p("expedait_cli.commands.projects.ExpedaitClient", return_value=mock):
+            result = _R().invoke(_cli, ["--format", "json", "projects", "workspace", "5"])
+        assert result.exit_code == 0
+        import json as _j
+        assert _j.loads(result.output)["phases"][0]["name"] == "Discovery"
+        mock.get_workspace.assert_called_once_with(5)

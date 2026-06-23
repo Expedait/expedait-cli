@@ -13,6 +13,8 @@ from .commands.objectives import objectives
 from .commands.context_cmd import context
 from .commands.review import review
 from .commands.comments import comments
+from .commands.processes import processes
+from .commands.roles import roles
 
 
 @click.group()
@@ -37,5 +39,7 @@ cli.add_command(objectives)
 cli.add_command(context)
 cli.add_command(review)
 cli.add_command(comments)
+cli.add_command(processes)
+cli.add_command(roles)
 # Deprecated alias — warns and forwards to `deliverables`. Drop next release.
 cli.add_command(pages)

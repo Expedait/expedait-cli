@@ -59,13 +59,15 @@ def get_project(ctx: click.Context, project_id: int) -> None:
     output(data, ctx.obj.get("fmt"))
 
 
-@projects.command("download")
+@projects.command("workspace")
 @click.argument("project_id", type=int, required=False, default=None)
-@click.option("--output-dir", type=click.Path(), default=".expedait/context", help="Extract to directory.")
-@click.option("--download-format", type=click.Choice(["markdown", "json"]), default="markdown", help="Content format.")
 @click.pass_context
-def download_project(ctx: click.Context, project_id: int | None, output_dir: str, download_format: str) -> None:
-    """Download all project pages as a ZIP and extract."""
+def get_workspace(ctx: click.Context, project_id: int | None) -> None:
+    """Show a project's workspace: deliverables grouped by phase.
+
+    Mirrors the MCP `get_project_workspace` tool — the structure-aware view the
+    flat `deliverables list` can't give you.
+    """
     project_id = resolve_project_id(project_id)
     if project_id is None:
         raise click.UsageError(
@@ -73,7 +75,26 @@ def download_project(ctx: click.Context, project_id: int | None, output_dir: str
         )
     client = _make_client(ctx)
     try:
-        data = client.download_project(project_id, fmt=download_format)
+        data = client.get_workspace(project_id)
+    finally:
+        client.close()
+    output(data, ctx.obj.get("fmt"))
+
+
+@projects.command("download")
+@click.argument("project_id", type=int, required=False, default=None)
+@click.option("--output-dir", type=click.Path(), default=".expedait/context", help="Extract to directory.")
+@click.pass_context
+def download_project(ctx: click.Context, project_id: int | None, output_dir: str) -> None:
+    """Download all project deliverables as a ZIP (markdown + images) and extract."""
+    project_id = resolve_project_id(project_id)
+    if project_id is None:
+        raise click.UsageError(
+            "No project ID given. Pass PROJECT_ID or run 'expedait init'."
+        )
+    client = _make_client(ctx)
+    try:
+        data = client.download_project(project_id)
     finally:
         client.close()
 

@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.4.0
+
+Bring the CLI to parity with the hosted MCP server's write surface — agents can
+now create and adapt content, processes, and roles, not just read them. Every
+new command supports `--format json` and reports a per-op summary.
+
+### Added
+- **Deliverable writes** (mirror MCP `write_deliverable`):
+  - `deliverables write --ops @file.json` — ordered batch of `create` / `edit` /
+    `rename` / `save_version` / `set_state` ops, chainable with `id="$last"` or
+    named refs (`ref="x"` on create, `id="@x"` later). Pre-flight validates op
+    shape and reference ordering; ops stop on first failure (rest `skipped`) and
+    the command exits non-zero on partial failure.
+  - Ergonomic subcommands on top: `deliverables create`, `edit`, `rename`,
+    `save-version`, `set-state` (states: Not Started, In Progress, Review,
+    Approved, Completed, Final). `--content` / `--instructions` accept `@file`,
+    `-` (stdin), or a literal.
+- **`processes` command group** (mirror MCP `list_processes` / `get_process` /
+  `write_process`): `processes list`, `processes get PROCESS_ID` (full template
+  tree — phases, rows, deliverable-type cards, owner roles, objective
+  subprocesses), and `processes write --ops` (create/update/delete process,
+  phases, rows, deliverable types; `set_dependencies`; `set_owner_roles`). Named
+  refs, optional card layout with auto-placement (`after_type_id` / append),
+  role-name resolution, and an in-use delete guard (`confirm_in_use`).
+- **`roles` command group** (mirror MCP `list_roles` / `write_role`):
+  `roles list`, `roles create`, `roles update`, `roles delete`, and
+  `roles write --ops`.
+- **Context-file management** under the `context` group — manage the uploaded
+  files that feed a deliverable's (or objective's) LLM context: `context files`
+  (list), `context add` (upload; re-upload by name replaces), `context
+  file-content` (parsed text), `context download-file`, `context remove-file`,
+  and `context set-file --exclude/--include` (toggle a file in/out of the LLM
+  context). External source links remain web-app integration flows.
+- `expedait_cli/ops.py` — shared multi-op engine (`RefResolver`, `run_ops`,
+  `render_ops`) behind all three write surfaces, mirroring the MCP server's
+  `_common.py` run-ops scaffold.
+- `client.BackendError` + an op-safe request path so per-op failures are
+  captured and reported instead of aborting the whole command.
+- `deliverables types` — list deliverable types so you can find the `--type` id
+  that `deliverables create` needs.
+- `projects workspace [PROJECT_ID]` — deliverables grouped by phase (mirrors the
+  MCP `get_project_workspace` tool); the structure-aware view the flat
+  `deliverables list` can't give.
+
+### Fixed
+- `processes write` no longer crashes with an uncaught `KeyError` when an
+  `update_phase_row` op omits `position`; it now reports a clean per-op
+  `missing_field` error.
+- `--content` / `--instructions` / `--ops` with a missing or unreadable `@file`
+  now raise a clear usage error instead of leaking an `OSError` traceback. The
+  three duplicate readers were consolidated into one helper (`ops.read_value_arg`).
+- `projects download` no longer crashes. It passed a `fmt=` argument that the
+  client method never accepted (a `TypeError` on every run, hidden by a loosely
+  mocked test). The backend `/download` endpoint has no format parameter, so the
+  dead `--download-format` option was removed; the command always extracts the
+  markdown + images ZIP.
+
 ## 0.3.0
 
 Adapt the CLI to the product's four-primitive domain model (objectives,

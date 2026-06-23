@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "expedait-cli"
-version = "0.3.0"
-description = "CLI for Expedait project management — download specs, post comments"
+version = "0.4.0"
+description = "CLI for Expedait project management — read and write deliverables, processes, roles, and comments"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
