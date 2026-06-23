@@ -51,6 +51,11 @@ new command supports `--format json` and reports a per-op summary.
 - `--content` / `--instructions` / `--ops` with a missing or unreadable `@file`
   now raise a clear usage error instead of leaking an `OSError` traceback. The
   three duplicate readers were consolidated into one helper (`ops.read_value_arg`).
+- `projects download` no longer crashes. It passed a `fmt=` argument that the
+  client method never accepted (a `TypeError` on every run, hidden by a loosely
+  mocked test). The backend `/download` endpoint has no format parameter, so the
+  dead `--download-format` option was removed; the command always extracts the
+  markdown + images ZIP.
 
 ## 0.3.0
 

@@ -84,10 +84,9 @@ def get_workspace(ctx: click.Context, project_id: int | None) -> None:
 @projects.command("download")
 @click.argument("project_id", type=int, required=False, default=None)
 @click.option("--output-dir", type=click.Path(), default=".expedait/context", help="Extract to directory.")
-@click.option("--download-format", type=click.Choice(["markdown", "json"]), default="markdown", help="Content format.")
 @click.pass_context
-def download_project(ctx: click.Context, project_id: int | None, output_dir: str, download_format: str) -> None:
-    """Download all project pages as a ZIP and extract."""
+def download_project(ctx: click.Context, project_id: int | None, output_dir: str) -> None:
+    """Download all project deliverables as a ZIP (markdown + images) and extract."""
     project_id = resolve_project_id(project_id)
     if project_id is None:
         raise click.UsageError(
@@ -95,7 +94,7 @@ def download_project(ctx: click.Context, project_id: int | None, output_dir: str
         )
     client = _make_client(ctx)
     try:
-        data = client.download_project(project_id, fmt=download_format)
+        data = client.download_project(project_id)
     finally:
         client.close()
 
