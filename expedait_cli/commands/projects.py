@@ -59,6 +59,28 @@ def get_project(ctx: click.Context, project_id: int) -> None:
     output(data, ctx.obj.get("fmt"))
 
 
+@projects.command("workspace")
+@click.argument("project_id", type=int, required=False, default=None)
+@click.pass_context
+def get_workspace(ctx: click.Context, project_id: int | None) -> None:
+    """Show a project's workspace: deliverables grouped by phase.
+
+    Mirrors the MCP `get_project_workspace` tool — the structure-aware view the
+    flat `deliverables list` can't give you.
+    """
+    project_id = resolve_project_id(project_id)
+    if project_id is None:
+        raise click.UsageError(
+            "No project ID given. Pass PROJECT_ID or run 'expedait init'."
+        )
+    client = _make_client(ctx)
+    try:
+        data = client.get_workspace(project_id)
+    finally:
+        client.close()
+    output(data, ctx.obj.get("fmt"))
+
+
 @projects.command("download")
 @click.argument("project_id", type=int, required=False, default=None)
 @click.option("--output-dir", type=click.Path(), default=".expedait/context", help="Extract to directory.")

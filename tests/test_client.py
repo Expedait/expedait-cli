@@ -116,3 +116,37 @@ class TestClientMethods:
         httpx_mock.add_response(status_code=401)
         with pytest.raises(click.UsageError, match="Invalid email"):
             ExpedaitClient.login("http://x", "a@b.com", "wrong")
+
+
+class TestContextFileUpload:
+    def test_multipart_field_and_tenant_header(self, httpx_mock):
+        """Upload must send a multipart part named 'file' and carry the tenant
+        header — the context-file command tests mock the client wholesale, so
+        this is the only check of the real outgoing request shape."""
+        httpx_mock.add_response(
+            json={"id": 3, "filename": "ref.md"},
+            url="http://x/api/v1/deliverables/1/files",
+        )
+        c = ExpedaitClient("http://x", "tok", tenant_id=7)
+        result = c.upload_deliverable_file(1, "ref.md", b"# Ref", "text/markdown")
+        c.close()
+        assert result["id"] == 3
+        req = httpx_mock.get_requests()[0]
+        assert req.method == "POST"
+        assert req.headers["x-active-tenant-id"] == "7"
+        body = req.content
+        assert b'name="file"' in body
+        assert b"ref.md" in body
+        assert b"# Ref" in body
+
+
+class TestOpSafeErrors:
+    def test_request_op_raises_backend_error(self, httpx_mock):
+        from expedait_cli.client import BackendError
+        httpx_mock.add_response(status_code=423, json={"detail": "locked"})
+        c = ExpedaitClient("http://x", "tok")
+        with pytest.raises(BackendError) as exc:
+            c._request_op("PUT", "/api/v1/deliverables/1", json={"content": "x"})
+        c.close()
+        assert exc.value.status == 423
+        assert "locked" in str(exc.value.body)

@@ -121,3 +121,22 @@ class TestProjectsDownload:
 
             assert result.exit_code == 0
             mock_download.assert_called_once_with(1, fmt="json")
+
+
+class TestWorkspace:
+    def test_workspace_json(self):
+        from unittest.mock import patch as _p, MagicMock as _M
+        from click.testing import CliRunner as _R
+        from expedait_cli.main import cli as _cli
+        data = {"phases": [{"name": "Discovery", "deliverables": []}]}
+        mock = _M(get_workspace=_M(return_value=data), close=_M())
+        with _p("expedait_cli.commands.projects.resolve_token", return_value="t"), \
+             _p("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"), \
+             _p("expedait_cli.commands.projects.resolve_tenant_id", return_value=1), \
+             _p("expedait_cli.commands.projects.resolve_project_id", side_effect=lambda x: x), \
+             _p("expedait_cli.commands.projects.ExpedaitClient", return_value=mock):
+            result = _R().invoke(_cli, ["--format", "json", "projects", "workspace", "5"])
+        assert result.exit_code == 0
+        import json as _j
+        assert _j.loads(result.output)["phases"][0]["name"] == "Discovery"
+        mock.get_workspace.assert_called_once_with(5)

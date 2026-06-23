@@ -92,6 +92,7 @@ expedait auth logout      # Clear stored credentials
 ```bash
 expedait projects list                       # List all projects
 expedait projects get PROJECT_ID             # Get project details
+expedait projects workspace PROJECT_ID       # Deliverables grouped by phase (structure-aware view)
 expedait projects download PROJECT_ID        # Extract all deliverables to .expedait/context/
 expedait projects download PROJECT_ID --output-dir ./specs  # Extract to a custom directory
 ```
@@ -100,6 +101,7 @@ expedait projects download PROJECT_ID --output-dir ./specs  # Extract to a custo
 
 ```bash
 expedait deliverables list --project-id PROJECT_ID   # List deliverables in a project
+expedait deliverables types                           # List deliverable types (find the --type ID for create)
 expedait deliverables get DELIVERABLE_ID             # Print deliverable markdown content
 expedait deliverables get DELIVERABLE_ID --include meta,content,dependencies,score
 expedait deliverables inspect DELIVERABLE_ID         # Full context (content + comments + deps + lock)
@@ -112,6 +114,43 @@ expedait deliverables download DELIVERABLE_ID        # Extract to .expedait/cont
 `parent_deliverable_id` (non-null ⇒ this deliverable is a child nested under an
 objective).
 
+#### Writing deliverables
+
+Mirrors the MCP `write_deliverable` tool. Ergonomic subcommands cover the common
+cases; `write --ops` applies an ordered batch in one call.
+
+```bash
+expedait deliverables create --project P --type TYPE_ID --title "Vision" \
+  [--content @vision.md] [--parent-deliverable-id ID]   # create (content: @file, - for stdin, or literal)
+expedait deliverables edit DELIVERABLE_ID --content @body.md   # replace content (autosave, no version bump)
+expedait deliverables rename DELIVERABLE_ID --title "New title" # rename without touching content
+expedait deliverables save-version DELIVERABLE_ID --reason "checkpoint"  # explicit snapshot
+expedait deliverables set-state DELIVERABLE_ID --state "Review"          # transition workflow state
+```
+
+Valid states: `Not Started`, `In Progress`, `Review`, `Approved`, `Completed`,
+`Final`.
+
+For multi-step writes, `write --ops` takes a JSON ops array (`@file.json`, `-`
+for stdin, or inline). Each op is one of `create`, `edit`, `rename`,
+`save_version`, `set_state`. Chain ops on a freshly-created deliverable with
+`"id": "$last"` (the previous op's deliverable) or bind a name on create
+(`"ref": "x"`) and reference it later as `"id": "@x"`:
+
+```bash
+expedait deliverables write --ops @ops.json
+# ops.json:
+# [
+#   {"op": "create", "ref": "v", "project_id": 1, "deliverable_type_id": 3, "title": "Vision"},
+#   {"op": "edit", "id": "@v", "content": "# Product Vision\n..."},
+#   {"op": "set_state", "id": "@v", "state": "Review"}
+# ]
+```
+
+Ops run in order and stop on the first failure (the rest report `skipped`); the
+output reports per-op `{status: ok | error | skipped}`, and the command exits
+non-zero if any op failed.
+
 ### Objectives
 
 ```bash
@@ -123,6 +162,23 @@ expedait objectives overview DELIVERABLE_ID   # Objective metadata + full descen
 ```bash
 expedait context get DELIVERABLE_ID           # The LLM context snapshot for one deliverable
 ```
+
+A deliverable's (or objective's) context is built from dependency deliverables,
+linked external sources, and **uploaded context files**. The CLI manages the
+file half of that surface — attach reference docs an agent should write against,
+and toggle whether each one feeds the LLM context:
+
+```bash
+expedait context files DELIVERABLE_ID                 # List attached context files
+expedait context add DELIVERABLE_ID ./reference.md    # Upload a context file (re-upload by name replaces)
+expedait context file-content FILE_ID                 # Parsed text the file contributes to context
+expedait context download-file FILE_ID -o ./out.md    # Download a file's raw bytes
+expedait context set-file FILE_ID --exclude           # Exclude from LLM context (or --include)
+expedait context remove-file FILE_ID                  # Delete a context file
+```
+
+External source links (Notion, GitHub, etc.) are created through the web app's
+integration flows, not the CLI.
 
 ### Review
 
@@ -149,6 +205,56 @@ Only `--text` and `--selected-text` are required; the CLI locates the selected
 text in the deliverable to compute anchor offsets. Pass `--start-offset` and
 `--end-offset` to anchor explicitly (e.g. when the selected text appears more
 than once).
+
+### Processes (Process Designer)
+
+A *process* is a project type plus the template tree it owns: phases → rows →
+deliverable-type cards, dependency edges, owner roles, and objective
+subprocesses. Editing it reshapes **every** project instantiated from it.
+Mirrors the MCP `list_processes` / `get_process` / `write_process` tools.
+
+```bash
+expedait processes list                   # List processes (project types)
+expedait processes get PROCESS_ID         # Full template tree (phases, rows, cards, roles)
+expedait processes write --ops @ops.json  # Build or adapt a process in one call
+```
+
+`write --ops` ops: `create_process`, `update_process`, `duplicate_process`,
+`delete_process`, `create_phase`, `update_phase`, `delete_phase`,
+`create_phase_row`, `update_phase_row`, `delete_phase_row`,
+`create_deliverable_type`, `update_deliverable_type`, `delete_deliverable_type`,
+`set_dependencies`, `set_owner_roles`. Ops chain via named refs (`"ref": "x"` on
+a create op, `"@x"` later). Card layout is optional — omit `col_position` and
+cards auto-place (append, or just after `after_type_id`). `set_owner_roles`
+accepts role names or ids. Delete ops refuse an in-use template unless the op
+carries `"confirm_in_use": true`.
+
+```jsonc
+// ops.json — build a process end to end in one call
+[
+  {"op": "create_process", "ref": "p", "name": "Product Dev"},
+  {"op": "create_phase", "ref": "ph", "process_id": "@p", "name": "Discovery"},
+  {"op": "create_deliverable_type", "ref": "vision", "phase_id": "@ph", "name": "Vision"},
+  {"op": "create_deliverable_type", "ref": "prd", "phase_id": "@ph", "name": "PRD", "after_type_id": "@vision"},
+  {"op": "set_dependencies", "type_id": "@prd", "dependency_ids": ["@vision"]},
+  {"op": "set_owner_roles", "type_id": "@prd", "role_names": ["Product Manager"]}
+]
+```
+
+### Roles
+
+A *role* is a workspace project role — the owner-role pool assigned to
+deliverable types. A role's `instructions` is its LLM coaching persona. Mirrors
+the MCP `list_roles` / `write_role` tools.
+
+```bash
+expedait roles list                                       # List project roles
+expedait roles create --name "Product Manager" \          # Create (instructions: @file, -, or literal)
+  [--description "owns the roadmap"] [--instructions @pm.md]
+expedait roles update ROLE_ID --name "Lead PM"            # Update name/description/instructions
+expedait roles delete ROLE_ID                             # Delete a role
+expedait roles write --ops @ops.json                      # Batch (create_role/update_role/delete_role)
+```
 
 ### Global Options
 
