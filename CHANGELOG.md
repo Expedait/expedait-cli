@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1
+
+Packaging and documentation polish ahead of the repository going public. No
+runtime behavior changes.
+
+### Changed
+- **PyPI metadata**: added `authors`, `keywords`, trove `classifiers`, and
+  `[project.urls]` (Homepage, Repository, Issues, Changelog) so the PyPI project
+  page links back to the repo and the package is discoverable in search.
+- **README**: added a Table of Contents; restructured install docs into an
+  `Installation` section with multiple methods (`uvx`, `uv tool install`,
+  `pipx`, `pip`) leading with isolated installers; added a `Quickstart` with a
+  `--help` discoverability note; added `Getting Help` and `Contributing`
+  sections.
+
 ## 0.4.0
 
 Bring the CLI to parity with the hosted MCP server's write surface — agents can

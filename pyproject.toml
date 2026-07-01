@@ -4,15 +4,33 @@ build-backend = "hatchling.build"
 
 [project]
 name = "expedait-cli"
-version = "0.4.0"
+version = "0.4.1"
 description = "CLI for Expedait project management — read and write deliverables, processes, roles, and comments"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
+authors = [{ name = "Bruno Coussement", email = "bruno@cbengineering.be" }]
+keywords = ["expedait", "cli", "ai-agents", "project-management", "specs"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
 dependencies = [
     "click>=8.1",
     "httpx>=0.27",
 ]
+
+[project.urls]
+Homepage = "https://expedait.org"
+Repository = "https://github.com/Expedait/expedait-cli"
+Issues = "https://github.com/Expedait/expedait-cli/issues"
+Changelog = "https://github.com/Expedait/expedait-cli/blob/main/CHANGELOG.md"
 
 [project.scripts]
 expedait = "expedait_cli.main:cli"

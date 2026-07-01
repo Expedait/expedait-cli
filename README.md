@@ -6,6 +6,20 @@
 
 CLI for [Expedait](https://expedait.org) — lets AI coding agents download project specs and post comments via the Expedait API.
 
+## Table of Contents
+
+- [The model](#the-model)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Project Setup](#project-setup)
+- [Authentication](#authentication)
+- [Commands](#commands)
+- [Agent Skills](#agent-skills)
+- [Development](#development)
+- [Getting Help](#getting-help)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## The model
 
 Expedait organizes specs around four primitives:
@@ -15,27 +29,55 @@ Expedait organizes specs around four primitives:
 - **Context** — the assembled LLM context for one deliverable: dependency deliverables, linked external sources, uploaded files, and aggregate sizes.
 - **Review** — scoring findings raised on a deliverable: severity, description, the criteria that flagged them, and anchor offsets.
 
-## Usage
+## Installation
+
+Requires Python 3.11+.
 
 ### Run with `uvx` (recommended)
 
-No installation needed — run directly:
+No install needed — [`uvx`](https://docs.astral.sh/uv/) fetches and runs the CLI on demand, always at the latest version:
 
 ```bash
-uvx expedait-cli auth login
-uvx expedait-cli projects list
-uvx expedait-cli projects download 1
+uvx expedait-cli --help
 ```
 
-### Add as a dev dependency
+With `uvx` you invoke commands as `uvx expedait-cli <command>`. The methods below install an `expedait` executable so you can drop the prefix and run `expedait <command>` (the form used throughout this README).
 
-If your AI agent needs it available in the project environment:
+### Install globally
+
+```bash
+uv tool install expedait-cli      # via uv — isolated, recommended
+pipx install expedait-cli         # via pipx — isolated
+pip install expedait-cli          # via pip
+```
+
+`uv tool install` and `pipx` keep the CLI in its own virtual environment so it never conflicts with other Python packages — the recommended way to install a standalone CLI.
+
+### Add as a project dependency
+
+For an AI agent that needs the CLI available in the project environment:
 
 ```bash
 uv add --group dev expedait-cli
 ```
 
-Then reference it in your agent configuration (e.g. `CLAUDE.md`, `.cursor/rules`, etc.).
+Then reference it in your agent configuration (e.g. `CLAUDE.md`, `.cursor/rules`).
+
+## Quickstart
+
+```bash
+expedait auth login          # 1. Authenticate (SSO or email/password)
+expedait init                # 2. Store tenant + project for this directory
+expedait projects download   # 3. Pull all deliverables into .expedait/context/
+```
+
+Every command and subcommand supports `--help`:
+
+```bash
+expedait --help
+expedait deliverables --help
+expedait deliverables create --help
+```
 
 ## Project Setup
 
@@ -284,6 +326,15 @@ cd expedait-cli
 uv sync --group dev
 uv run python -m pytest
 ```
+
+## Getting Help
+
+- Run `expedait <command> --help` for terminal reference on any command.
+- Found a bug or have a feature request? [Open an issue](https://github.com/Expedait/expedait-cli/issues).
+
+## Contributing
+
+Contributions are welcome. Set up the project as shown in [Development](#development), make your change with tests, and open a pull request against `main`. CI runs the test suite on Python 3.11–3.13.
 
 ## License
 
