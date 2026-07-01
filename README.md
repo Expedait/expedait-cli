@@ -6,6 +6,8 @@
 
 CLI for [Expedait](https://expedait.org) — lets AI coding agents download project specs and post comments via the Expedait API.
 
+📖 **User docs:** [app.expedait.org/docs/cli](https://app.expedait.org/docs/cli)
+
 ## Table of Contents
 
 - [The model](#the-model)
@@ -329,6 +331,7 @@ uv run python -m pytest
 
 ## Getting Help
 
+- Read the [user documentation](https://app.expedait.org/docs/cli) for a guided walkthrough.
 - Run `expedait <command> --help` for terminal reference on any command.
 - Found a bug or have a feature request? [Open an issue](https://github.com/Expedait/expedait-cli/issues).
 
