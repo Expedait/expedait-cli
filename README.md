@@ -141,6 +141,39 @@ expedait projects download PROJECT_ID        # Extract all deliverables to .expe
 expedait projects download PROJECT_ID --output-dir ./specs  # Extract to a custom directory
 ```
 
+#### Writing projects
+
+A *project* is one instantiation of a process (project type) — the concrete
+workspace whose deliverables an agent authors. Mirrors the MCP `write_project`
+tool. Find the `--process-id` with `expedait processes list`.
+
+```bash
+expedait projects create --name "Q3 Launch" --process-id 3 \  # Create from a process
+  [--description "the thing"]
+expedait projects update PROJECT_ID --name "New name" \        # Update name/description/process/repo
+  [--process-id 4] [--repo-url https://github.com/org/repo]
+expedait projects delete PROJECT_ID                            # Preview the cascade (deletes nothing)
+expedait projects delete PROJECT_ID --confirm                  # Actually delete
+expedait projects write --ops @ops.json                        # Batch (create/update/delete)
+```
+
+**Deleting is irreversible and cascades** to every deliverable, version, file,
+comment, and agent run under the project. Because the API deletes immediately
+with no server-side confirm, the CLI enforces a two-step guard: a bare `delete`
+prints what would be destroyed and touches nothing; `--confirm` (or a
+`delete_project` op carrying `"confirm": true`) is required to proceed.
+
+`write --ops` ops: `create_project`, `update_project`, `delete_project`. Ops
+chain via named refs (`"ref": "x"` on a create, `"@x"` later) or `"$last"`:
+
+```jsonc
+// ops.json
+[
+  {"op": "create_project", "ref": "p", "name": "Q3 Launch", "project_type_id": 3},
+  {"op": "update_project", "id": "@p", "description": "seeded from process 3"}
+]
+```
+
 ### Deliverables
 
 ```bash
