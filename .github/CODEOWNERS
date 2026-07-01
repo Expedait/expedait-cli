@@ -1,0 +1,4 @@
+# Code owners for expedait-cli.
+# A PR to a protected branch requires an approving review from one of these
+# owners before it can be merged. See branch protection on `main`.
+* @brunocous @kristofmartens
