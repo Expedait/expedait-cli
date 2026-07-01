@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.3
+
+Close the last gap with the hosted MCP server's write surface: the CLI can now
+create, update, and delete **projects** (instances of a process), not just list
+and download them. This mirrors the MCP `write_project` tool — every other MCP
+write tool already had a CLI counterpart.
+
+### Added
+- **Project writes** (mirror MCP `write_project`): `projects create --name …
+  --process-id …`, `projects update PROJECT_ID …`, `projects delete PROJECT_ID`,
+  and a `projects write --ops` batch (`create_project` / `update_project` /
+  `delete_project`) with `$last` / `@ref` chaining. Ergonomic subcommands each
+  compose one op through the shared ops engine, so output and error handling
+  match `write --ops`.
+- **Two-step delete guard**: deleting a project cascades to every deliverable,
+  version, file, comment, and agent run and is irreversible. The REST endpoint
+  has no server-side confirm, so the CLI enforces one — a bare `projects delete
+  PROJECT_ID` previews the cascade and deletes nothing; `--confirm` (or a
+  `delete_project` op carrying `"confirm": true`) is required to actually delete.
+
+## 0.4.2
+
+Repository governance ahead of the project going public. No runtime behavior
+changes.
+
+### Added
+- **`.github/CODEOWNERS`**: require review from a maintainer on every change.
+- **`SECURITY.md`**: private vulnerability disclosure policy.
+- **`.github/dependabot.yml`**: weekly `uv` and `github-actions` update PRs.
+
 ## 0.4.1
 
 Packaging and documentation polish ahead of the repository going public. No

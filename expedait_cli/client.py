@@ -136,6 +136,19 @@ class ExpedaitClient:
         resp = self._request_raw("GET", f"/api/v1/projects/{project_id}/download")
         return resp.content
 
+    # -- projects — op-safe writes ----------------------------------------
+
+    def create_project(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request_op(
+            "POST", "/api/v1/projects/", json=self._with_tenant(payload),
+        )
+
+    def update_project(self, project_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request_op("PUT", f"/api/v1/projects/{project_id}", json=payload)
+
+    def delete_project(self, project_id: int) -> Any:
+        return self._request_op("DELETE", f"/api/v1/projects/{project_id}")
+
     # -- deliverables -----------------------------------------------------
 
     def list_deliverables(

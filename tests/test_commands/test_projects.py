@@ -125,6 +125,120 @@ class TestProjectsDownload:
             assert "no such option" in result.output.lower()
 
 
+def _patch_auth():
+    return [
+        patch("expedait_cli.commands.projects.resolve_token", return_value="tok"),
+        patch("expedait_cli.commands.projects.resolve_api_url", return_value="http://x"),
+        patch("expedait_cli.commands.projects.resolve_tenant_id", return_value=1),
+    ]
+
+
+def _run(args, mock):
+    p = _patch_auth()
+    with p[0], p[1], p[2], patch(
+        "expedait_cli.commands.projects.ExpedaitClient", return_value=mock
+    ):
+        return CliRunner().invoke(cli, args)
+
+
+class TestProjectsCreate:
+    def test_create(self):
+        mock = MagicMock(
+            create_project=MagicMock(return_value={"id": 7, "name": "MVP"}), close=MagicMock(),
+        )
+        result = _run(
+            ["--format", "json", "projects", "create", "--name", "MVP",
+             "--process-id", "3", "--description", "the thing"],
+            mock,
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["affected_ids"] == [7]
+        payload = mock.create_project.call_args.args[0]
+        assert payload == {"name": "MVP", "project_type_id": 3, "description": "the thing"}
+
+    def test_create_requires_process_id(self):
+        mock = MagicMock(close=MagicMock())
+        result = _run(["projects", "create", "--name", "MVP"], mock)
+        assert result.exit_code != 0
+        assert "process-id" in result.output.lower() or "process_id" in result.output.lower()
+
+
+class TestProjectsUpdate:
+    def test_update(self):
+        mock = MagicMock(
+            update_project=MagicMock(return_value={"id": 7, "name": "MVP 2"}), close=MagicMock(),
+        )
+        result = _run(["projects", "update", "7", "--name", "MVP 2", "--repo-url", "https://g/x"], mock)
+        assert result.exit_code == 0
+        mock.update_project.assert_called_once_with(7, {"name": "MVP 2", "repo_url": "https://g/x"})
+
+    def test_update_nothing_errors(self):
+        mock = MagicMock(close=MagicMock())
+        result = _run(["projects", "update", "7"], mock)
+        assert result.exit_code != 0
+        assert "Nothing to update" in result.output
+
+
+class TestProjectsDelete:
+    def test_preview_does_not_delete(self):
+        mock = MagicMock(
+            get_project=MagicMock(return_value={"id": 7, "name": "MVP"}),
+            delete_project=MagicMock(),
+            close=MagicMock(),
+        )
+        result = _run(["projects", "delete", "7"], mock)
+        assert result.exit_code == 0
+        assert "Nothing was deleted" in result.output
+        assert "--confirm" in result.output
+        mock.delete_project.assert_not_called()
+
+    def test_confirm_deletes(self):
+        mock = MagicMock(delete_project=MagicMock(return_value=None), close=MagicMock())
+        result = _run(["--format", "json", "projects", "delete", "7", "--confirm"], mock)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["all_ok"] is True
+        assert data["affected_ids"] == [7]
+        mock.delete_project.assert_called_once_with(7)
+
+
+class TestProjectsWriteOps:
+    def test_multi_op_chain(self):
+        mock = MagicMock(
+            create_project=MagicMock(return_value={"id": 20, "name": "P"}),
+            update_project=MagicMock(return_value={"id": 20, "name": "P2"}),
+            close=MagicMock(),
+        )
+        ops = [
+            {"op": "create_project", "ref": "p", "name": "P", "project_type_id": 3},
+            {"op": "update_project", "id": "@p", "name": "P2"},
+        ]
+        result = _run(["--format", "json", "projects", "write", "--ops", json.dumps(ops)], mock)
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["all_ok"] is True
+        mock.update_project.assert_called_once_with(20, {"name": "P2"})
+
+    def test_delete_op_requires_confirm(self):
+        mock = MagicMock(delete_project=MagicMock(), close=MagicMock())
+        ops = [{"op": "delete_project", "id": 7}]
+        result = _run(["--format", "json", "projects", "write", "--ops", json.dumps(ops)], mock)
+        assert result.exit_code != 0
+        data = json.loads(result.output)
+        assert data["all_ok"] is False
+        assert data["ops"][0]["error_code"] == "confirm_required"
+        mock.delete_project.assert_not_called()
+
+    def test_delete_op_with_confirm(self):
+        mock = MagicMock(delete_project=MagicMock(return_value=None), close=MagicMock())
+        ops = [{"op": "delete_project", "id": 7, "confirm": True}]
+        result = _run(["--format", "json", "projects", "write", "--ops", json.dumps(ops)], mock)
+        assert result.exit_code == 0
+        assert json.loads(result.output)["all_ok"] is True
+        mock.delete_project.assert_called_once_with(7)
+
+
 class TestWorkspace:
     def test_workspace_json(self):
         from unittest.mock import patch as _p, MagicMock as _M
