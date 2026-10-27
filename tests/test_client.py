@@ -150,3 +150,71 @@ class TestOpSafeErrors:
         c.close()
         assert exc.value.status == 423
         assert "locked" in str(exc.value.body)
+
+
+class TestTeamMethods:
+    """Teams replaced project roles in the Expedait API (one owning team per
+    deliverable type). The role endpoints are gone: these pin the team ones."""
+
+    def _body(self, request):
+        import json as _json
+        return _json.loads(request.content)
+
+    def test_list_teams(self, httpx_mock):
+        httpx_mock.add_response(json=[{"id": 9, "name": "Engineering"}])
+        c = ExpedaitClient("http://x", "tok")
+        assert c.list_teams()[0]["name"] == "Engineering"
+        request = httpx_mock.get_request()
+        assert (request.method, request.url.path) == ("GET", "/api/v1/teams")
+        c.close()
+
+    def test_create_team_sends_the_agent_instructions_with_the_team(self, httpx_mock):
+        httpx_mock.add_response(json={"id": 12, "name": "Security"})
+        c = ExpedaitClient("http://x", "tok", tenant_id=1)
+        c.create_team({"name": "Security", "description": "d", "instructions": "Be strict."})
+        request = httpx_mock.get_request()
+        assert (request.method, request.url.path) == ("POST", "/api/v1/teams")
+        assert self._body(request) == {"name": "Security", "description": "d", "instructions": "Be strict."}
+        c.close()
+
+    def test_update_team(self, httpx_mock):
+        httpx_mock.add_response(json={"id": 12, "name": "Security & Compliance"})
+        c = ExpedaitClient("http://x", "tok")
+        c.update_team(12, {"name": "Security & Compliance"})
+        request = httpx_mock.get_request()
+        assert (request.method, request.url.path) == ("PUT", "/api/v1/teams/12")
+        assert self._body(request) == {"name": "Security & Compliance"}
+        c.close()
+
+    def test_update_team_agent(self, httpx_mock):
+        httpx_mock.add_response(json={"id": 3, "team_id": 12, "instructions": "Be strict."})
+        c = ExpedaitClient("http://x", "tok")
+        c.update_team_agent(12, "Be strict.")
+        request = httpx_mock.get_request()
+        assert (request.method, request.url.path) == ("PUT", "/api/v1/teams/12/agent")
+        assert self._body(request) == {"instructions": "Be strict."}
+        c.close()
+
+    def test_delete_team(self, httpx_mock):
+        httpx_mock.add_response(json={"message": "deleted"})
+        c = ExpedaitClient("http://x", "tok")
+        c.delete_team(12)
+        request = httpx_mock.get_request()
+        assert (request.method, request.url.path) == ("DELETE", "/api/v1/teams/12")
+        c.close()
+
+    def test_set_owner_team(self, httpx_mock):
+        httpx_mock.add_response(json={"owner_team_id": 9})
+        c = ExpedaitClient("http://x", "tok")
+        c.set_deliverable_type_owner_team(50, 9)
+        request = httpx_mock.get_request()
+        assert (request.method, request.url.path) == ("PUT", "/api/v1/deliverables/types/50/owner-team")
+        assert self._body(request) == {"team_id": 9}
+        c.close()
+
+    def test_clearing_the_owner_team_sends_null(self, httpx_mock):
+        httpx_mock.add_response(json={"owner_team_id": None})
+        c = ExpedaitClient("http://x", "tok")
+        c.set_deliverable_type_owner_team(50, None)
+        assert self._body(httpx_mock.get_request()) == {"team_id": None}
+        c.close()

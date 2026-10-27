@@ -1,10 +1,15 @@
 """Process (Process Designer) commands: list, get, write.
 
 A *process* is a project type plus the template tree it owns: phases → rows →
-deliverable-type cards, dependency edges between cards, owner roles, and
-objective subprocesses (a card flagged ``is_objective`` owns its own inner set
-of phases). It is the TEMPLATE layer — editing it reshapes every project
-instantiated from the process.
+deliverable-type cards, dependency edges between cards, the owning team of each
+card, and objective subprocesses (a card flagged ``is_objective`` owns its own
+inner set of phases). It is the TEMPLATE layer — editing it reshapes every
+project instantiated from the process. Changing a process is owner-only.
+
+Inside a phase, order comes from rows: a card depends on the cards in the rows
+above it, and ``set_dependencies`` between two cards of one phase is refused.
+Every card needs a row (``phase_row_id``): a card without one is saved but not
+drawn on the Process Designer canvas.
 
 This mirrors the MCP ``list_processes`` / ``get_process`` / ``write_process``
 tools (``backend/app/mcp_server/tools/process.py``), hitting the same REST
@@ -42,7 +47,7 @@ VALID_PROCESS_OPS = {
     "create_phase", "update_phase", "delete_phase",
     "create_phase_row", "update_phase_row", "delete_phase_row",
     "create_deliverable_type", "update_deliverable_type", "delete_deliverable_type",
-    "set_dependencies", "set_owner_roles",
+    "set_dependencies", "set_owner_team",
 }
 _CREATE_OPS = {
     "create_process", "duplicate_process", "create_phase",
@@ -85,6 +90,12 @@ def _preflight_validate(ops: list[dict]) -> None:
         if not isinstance(op, dict):
             raise click.UsageError(f"ops[{i}] must be an object.")
         op_type = op.get("op")
+        if op_type == "set_owner_roles":
+            raise click.UsageError(
+                f"ops[{i}]: set_owner_roles was replaced by set_owner_team "
+                "(type_id, team_id | team_name): a deliverable type has exactly "
+                "one owning team."
+            )
         if op_type not in VALID_PROCESS_OPS:
             raise click.UsageError(
                 f"ops[{i}].op invalid: {op_type!r}. Valid: {', '.join(sorted(VALID_PROCESS_OPS))}"
@@ -122,18 +133,13 @@ def _preflight_validate(ops: list[dict]) -> None:
                 raise click.UsageError(
                     f"ops[{i}] (set_dependencies): dependency_ids must be a list."
                 )
-        elif op_type == "set_owner_roles":
+        elif op_type == "set_owner_team":
             _require(op, i, "type_id")
-            roles = op.get("role_ids")
-            names = op.get("role_names")
-            if roles is None and names is None:
+            # team_id accepts an id, an @ref or a name; null clears the owner.
+            if "team_id" not in op and "team_name" not in op:
                 raise click.UsageError(
-                    f"ops[{i}] (set_owner_roles): role_ids or role_names is required."
+                    f"ops[{i}] (set_owner_team): team_id or team_name is required."
                 )
-            if roles is not None and not isinstance(roles, list):
-                raise click.UsageError(f"ops[{i}] (set_owner_roles): role_ids must be a list.")
-            if names is not None and not isinstance(names, list):
-                raise click.UsageError(f"ops[{i}] (set_owner_roles): role_names must be a list.")
 
 
 # --------------------------------------------------------------------------
@@ -178,11 +184,11 @@ def _assemble_process(client: ExpedaitClient, process_id: int) -> dict:
     process = client.get_process_type(process_id)
     phases = client.get_process_phases(process_id) or []
     rows = client.get_process_rows(process_id) or []
-    roles = client.list_roles() or []
+    teams = client.list_teams() or []
     all_types = _fetch_all_types(client)
 
     phase_ids = {p["id"] for p in phases}
-    role_name = {r["id"]: r.get("name") for r in roles}
+    team_name = {t["id"]: t.get("name") for t in teams}
 
     rows_by_phase: dict = {}
     for r in rows:
@@ -206,7 +212,7 @@ def _assemble_process(client: ExpedaitClient, process_id: int) -> dict:
         lst.sort(key=lambda p: (p.get("order") if p.get("order") is not None else 0))
 
     def build_type(t: dict, depth: int) -> dict:
-        owner_role_ids = t.get("owner_role_ids") or []
+        owner_team_id = t.get("owner_team_id")
         card = {
             "id": t.get("id"),
             "name": t.get("name"),
@@ -216,10 +222,11 @@ def _assemble_process(client: ExpedaitClient, process_id: int) -> dict:
             "phase_id": t.get("phase_id"),
             "phase_row_id": t.get("phase_row_id"),
             "col_position": t.get("col_position"),
-            "owner_role_ids": owner_role_ids,
-            "owner_roles": [
-                {"id": rid, "name": role_name.get(rid)} for rid in owner_role_ids
-            ],
+            "owner_team_id": owner_team_id,
+            "owner_team": (
+                {"id": owner_team_id, "name": team_name.get(owner_team_id)}
+                if owner_team_id is not None else None
+            ),
             "dependency_ids": t.get("dependency_ids") or [],
         }
         if t.get("is_objective") and depth < MAX_SUBPROCESS_DEPTH:
@@ -256,12 +263,12 @@ def _assemble_process(client: ExpedaitClient, process_id: int) -> dict:
             "icon": process.get("icon"),
         },
         "phases": [build_phase(p, 0) for p in top_phases],
-        "roles": [{"id": r.get("id"), "name": r.get("name")} for r in roles],
+        "teams": [{"id": t.get("id"), "name": t.get("name")} for t in teams],
     }
 
 
 # --------------------------------------------------------------------------
-# write_process execution context — lazy indices for auto-place + role resolve.
+# write_process execution context — lazy indices for auto-place + team resolve.
 # --------------------------------------------------------------------------
 
 
@@ -272,8 +279,8 @@ class _WriteContext:
         self._type_col: dict = {}
         self._phase_max_col: dict = {}
         self._phase_row_count: dict = {}
-        self._roles_by_name: dict | None = None
-        self._role_names: list[str] = []
+        self._teams_by_name: dict | None = None
+        self._team_names: list[str] = []
 
     def _ensure_types_loaded(self) -> None:
         if self._types_loaded:
@@ -312,30 +319,32 @@ class _WriteContext:
         self._phase_row_count[phase_id] = n
         return ROW_STEP * n
 
-    def _ensure_roles_loaded(self) -> None:
-        if self._roles_by_name is not None:
+    def _ensure_teams_loaded(self) -> None:
+        if self._teams_by_name is not None:
             return
-        self._roles_by_name = {}
-        for r in self.client.list_roles() or []:
-            name = r.get("name")
+        self._teams_by_name = {}
+        for t in self.client.list_teams() or []:
+            name = t.get("name")
             if name:
-                self._roles_by_name[name.strip().lower()] = r.get("id")
-                self._role_names.append(name)
+                self._teams_by_name[name.strip().lower()] = t.get("id")
+                self._team_names.append(name)
 
-    def resolve_role(self, token, refs: RefResolver) -> int:
-        # ints and @refs resolve like any id; bare strings are role names.
+    def resolve_team(self, token, refs: RefResolver) -> int:
+        # ints and @refs resolve like any id; bare strings are team names.
         if isinstance(token, str) and not token.startswith("@"):
-            self._ensure_roles_loaded()
-            rid = (self._roles_by_name or {}).get(token.strip().lower())
-            if rid is None:
-                hint = (
-                    "pass a role id, or one of these names: " + ", ".join(sorted(self._role_names))
-                    if self._role_names
-                    else "create the role first via `roles create`"
+            self._ensure_teams_loaded()
+            tid = (self._teams_by_name or {}).get(token.strip().lower())
+            if tid is None:
+                known = (
+                    "pass a team id, or one of these names: " + ", ".join(sorted(self._team_names)) + ". "
+                    if self._team_names else ""
                 )
-                raise OpError("unknown_role", f"no role named {token!r}", fix_hint=hint)
-            return rid
-        return refs.resolve(token, kind="role_id")
+                raise OpError(
+                    "unknown_team", f"no team named {token!r}",
+                    fix_hint=known + "To add a team, create it first with `expedait teams create`.",
+                )
+            return tid
+        return refs.resolve(token, kind="team_id")
 
 
 def _put_fields(op: dict, fields) -> dict:
@@ -491,21 +500,23 @@ def _build_handlers(client: ExpedaitClient, ctx: _WriteContext) -> dict:
         client.delete_deliverable_type(ttid)
         return {"id": ttid, "deleted": True}, ttid
 
-    # ---- edges + roles ----
+    # ---- edges + owning team ----
     def h_set_dependencies(op, refs):
         ttid = refs.resolve(op["type_id"], kind="deliverable type id")
         dep_ids = [refs.resolve(d, kind="dependency type id") for d in op["dependency_ids"]]
         client.set_deliverable_type_dependencies(ttid, dep_ids)
         return {"id": ttid, "dependency_ids": dep_ids}, ttid
 
-    def h_set_owner_roles(op, refs):
+    def h_set_owner_team(op, refs):
         ttid = refs.resolve(op["type_id"], kind="deliverable type id")
-        tokens = op.get("role_ids")
-        if tokens is None:
-            tokens = op.get("role_names") or []
-        role_ids = [ctx.resolve_role(tok, refs) for tok in tokens]
-        client.set_deliverable_type_owner_roles(ttid, role_ids)
-        return {"id": ttid, "role_ids": role_ids}, ttid
+        # A null team_id falls back to team_name, as a missing one does; null
+        # in both clears the owner.
+        token = op.get("team_id")
+        if token is None:
+            token = op.get("team_name")
+        team_id = ctx.resolve_team(token, refs) if token is not None else None
+        client.set_deliverable_type_owner_team(ttid, team_id)
+        return {"id": ttid, "team_id": team_id}, ttid
 
     return {
         "create_process": h_create_process,
@@ -522,7 +533,7 @@ def _build_handlers(client: ExpedaitClient, ctx: _WriteContext) -> dict:
         "update_deliverable_type": h_update_deliverable_type,
         "delete_deliverable_type": h_delete_deliverable_type,
         "set_dependencies": h_set_dependencies,
-        "set_owner_roles": h_set_owner_roles,
+        "set_owner_team": h_set_owner_team,
     }
 
 
@@ -566,7 +577,7 @@ def list_processes(ctx: click.Context) -> None:
 @click.argument("process_id", type=int)
 @click.pass_context
 def get_process(ctx: click.Context, process_id: int) -> None:
-    """Show a process's full template tree (phases, rows, cards, roles)."""
+    """Show a process's full template tree (phases, rows, cards, owning teams)."""
     client = _make_client(ctx)
     try:
         data = _assemble_process(client, process_id)
@@ -582,8 +593,11 @@ def write_process(ctx: click.Context, ops_arg: str) -> None:
     """Build or adapt a process in one call (mirrors write_process).
 
     Ops chain across entity kinds via named refs: a create op carries ref="x",
-    later ops reference "@x". Layout is optional (omit col_position and cards
-    auto-place). Deletes refuse an in-use template unless confirm_in_use=true.
+    later ops reference "@x". Give every card a row (create_phase_row, then
+    phase_row_id): a card without one is not drawn on the canvas. Order inside
+    a phase comes from rows; set_dependencies links cards across phases.
+    Omit col_position and cards are placed for you. Deletes refuse an in-use
+    template unless confirm_in_use=true. Owner-only.
     """
     raw = read_value_arg(ops_arg)
     try:

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.4
+
+Expedait replaced project roles with teams: each deliverable type now has
+exactly one owning team. The role endpoints are gone, so since that change
+`roles` commands failed with a 422, `processes write` could not assign owners
+(404), and `processes get` failed outright because it loaded roles first. This
+release moves the CLI to teams.
+
+### Changed
+- **`teams` replaces `roles`** (mirrors MCP `list_teams` / `write_team`):
+  `teams list`, `teams create`, `teams update`, `teams delete`, and
+  `teams write --ops` with `create_team`, `update_team`, `update_team_agent`
+  and `delete_team`. A team agent's persona has its own op
+  (`update_team_agent`), and `update_team` refuses `instructions` so a persona
+  change is never silently dropped. Deleting a team that still owns deliverable
+  types is refused with the types named. `roles` now only points to `teams`.
+- **`processes write`**: `set_owner_team` (`type_id`, `team_id` | `team_name`;
+  `null` clears the owner) replaces `set_owner_roles`, which is refused with a
+  pointer to it.
+- **`processes get`**: each card carries `owner_team_id` and `owner_team`, and
+  the tree lists `teams` instead of `roles`.
+- **Help and README**: every card needs a row, or the Process Designer does not
+  draw it; order inside a phase comes from rows. The README's build example
+  used a same-phase dependency, which the API refuses, and is corrected.
+  Changing processes and teams is owner-only in Expedait.
+
 ## 0.4.3
 
 Close the last gap with the hosted MCP server's write surface: the CLI can now

@@ -286,13 +286,14 @@ than once).
 ### Processes (Process Designer)
 
 A *process* is a project type plus the template tree it owns: phases → rows →
-deliverable-type cards, dependency edges, owner roles, and objective
-subprocesses. Editing it reshapes **every** project instantiated from it.
-Mirrors the MCP `list_processes` / `get_process` / `write_process` tools.
+deliverable-type cards, dependency edges, the owning team of each card, and
+objective subprocesses. Editing it reshapes **every** project instantiated from
+it, and only workspace owners can change it. Mirrors the MCP `list_processes` /
+`get_process` / `write_process` tools.
 
 ```bash
 expedait processes list                   # List processes (project types)
-expedait processes get PROCESS_ID         # Full template tree (phases, rows, cards, roles)
+expedait processes get PROCESS_ID         # Full template tree (phases, rows, cards, owning teams)
 expedait processes write --ops @ops.json  # Build or adapt a process in one call
 ```
 
@@ -300,37 +301,47 @@ expedait processes write --ops @ops.json  # Build or adapt a process in one call
 `delete_process`, `create_phase`, `update_phase`, `delete_phase`,
 `create_phase_row`, `update_phase_row`, `delete_phase_row`,
 `create_deliverable_type`, `update_deliverable_type`, `delete_deliverable_type`,
-`set_dependencies`, `set_owner_roles`. Ops chain via named refs (`"ref": "x"` on
-a create op, `"@x"` later). Card layout is optional — omit `col_position` and
-cards auto-place (append, or just after `after_type_id`). `set_owner_roles`
-accepts role names or ids. Delete ops refuse an in-use template unless the op
-carries `"confirm_in_use": true`.
+`set_dependencies`, `set_owner_team`. Ops chain via named refs (`"ref": "x"` on
+a create op, `"@x"` later). Put every card in a row (`create_phase_row`, then
+`phase_row_id`): a card without a row is not drawn on the Process Designer
+canvas. Inside a phase, a card depends on the cards in the rows above it;
+`set_dependencies` links cards in different phases. Omit `col_position` and
+cards are placed in their row for you (append, or just after `after_type_id`).
+`set_owner_team` takes a team name, id or `@ref`, and `null` clears the owner.
+Delete ops refuse an in-use template unless the op carries
+`"confirm_in_use": true`.
 
 ```jsonc
 // ops.json — build a process end to end in one call
 [
   {"op": "create_process", "ref": "p", "name": "Product Dev"},
-  {"op": "create_phase", "ref": "ph", "process_id": "@p", "name": "Discovery"},
-  {"op": "create_deliverable_type", "ref": "vision", "phase_id": "@ph", "name": "Vision"},
-  {"op": "create_deliverable_type", "ref": "prd", "phase_id": "@ph", "name": "PRD", "after_type_id": "@vision"},
+  {"op": "create_phase", "ref": "disc", "process_id": "@p", "name": "Discovery", "order": 1},
+  {"op": "create_phase", "ref": "def", "process_id": "@p", "name": "Definition", "order": 2},
+  {"op": "create_phase_row", "ref": "r1", "phase_id": "@disc"},
+  {"op": "create_phase_row", "ref": "r2", "phase_id": "@def"},
+  {"op": "create_deliverable_type", "ref": "vision", "phase_id": "@disc", "phase_row_id": "@r1", "name": "Vision"},
+  {"op": "create_deliverable_type", "ref": "prd", "phase_id": "@def", "phase_row_id": "@r2", "name": "PRD"},
   {"op": "set_dependencies", "type_id": "@prd", "dependency_ids": ["@vision"]},
-  {"op": "set_owner_roles", "type_id": "@prd", "role_names": ["Product Manager"]}
+  {"op": "set_owner_team", "type_id": "@prd", "team_name": "Product Management"}
 ]
 ```
 
-### Roles
+### Teams
 
-A *role* is a workspace project role — the owner-role pool assigned to
-deliverable types. A role's `instructions` is its LLM coaching persona. Mirrors
-the MCP `list_roles` / `write_role` tools.
+A *team* owns deliverable types: each deliverable type has exactly one owning
+team. Name a team for what it owns (Architecture, Security & Compliance), not
+after a job title. Every team has an agent, and the agent's `instructions` are
+its persona: they shape the chat, agent mode and scoring of the deliverables
+the team owns. Only workspace owners can change teams. Mirrors the MCP
+`list_teams` / `write_team` tools.
 
 ```bash
-expedait roles list                                       # List project roles
-expedait roles create --name "Product Manager" \          # Create (instructions: @file, -, or literal)
-  [--description "owns the roadmap"] [--instructions @pm.md]
-expedait roles update ROLE_ID --name "Lead PM"            # Update name/description/instructions
-expedait roles delete ROLE_ID                             # Delete a role
-expedait roles write --ops @ops.json                      # Batch (create_role/update_role/delete_role)
+expedait teams list                                         # List the workspace's teams
+expedait teams create --name "Security & Compliance" \      # Create a team and its agent
+  [--description "signs off releases"] [--instructions @persona.md]
+expedait teams update TEAM_ID --name "..."                  # Name, description, or --instructions (the agent's persona)
+expedait teams delete TEAM_ID                               # Refused while the team owns deliverable types
+expedait teams write --ops @ops.json                        # Batch (create_team/update_team/update_team_agent/delete_team)
 ```
 
 ### Global Options
