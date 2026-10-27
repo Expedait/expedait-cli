@@ -1,7 +1,7 @@
 """Shared multi-op write engine — the CLI mirror of the MCP server's
 ``write_*`` tools (``backend/app/mcp_server/tools/_common.py``).
 
-``deliverables write``, ``processes write``, and ``roles write`` all accept an
+``deliverables write``, ``processes write``, and ``teams write`` all accept an
 ordered list of ops, execute them sequentially, stop on the first failure
 (subsequent ops are ``skipped``), and return a per-op result array so the
 caller knows exactly which ops landed.

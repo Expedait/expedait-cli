@@ -275,12 +275,13 @@ class ExpedaitClient:
             json={"dependency_ids": dependency_ids},
         )
 
-    def set_deliverable_type_owner_roles(
-        self, type_id: int, role_ids: list[int],
+    def set_deliverable_type_owner_team(
+        self, type_id: int, team_id: int | None,
     ) -> Any:
+        """Set the one team accountable for a deliverable type; None clears it."""
         return self._request_op(
-            "PUT", f"/api/v1/deliverables/types/{type_id}/owner-roles",
-            json={"role_ids": role_ids},
+            "PUT", f"/api/v1/deliverables/types/{type_id}/owner-team",
+            json={"team_id": team_id},
         )
 
     def download_deliverable(self, deliverable_id: int) -> bytes:
@@ -407,18 +408,24 @@ class ExpedaitClient:
     def delete_phase_row(self, row_id: int) -> Any:
         return self._request_op("DELETE", f"/api/v1/projects/rows/{row_id}")
 
-    # -- roles (owner-role pool) ------------------------------------------
+    # -- teams (one owning team per deliverable type) --------------------
 
-    def list_roles(self) -> list[dict[str, Any]]:
-        return self._request("GET", "/api/v1/projects/roles")
+    def list_teams(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/api/v1/teams")
 
-    def create_role(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def create_team(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # The workspace comes from the X-Active-Tenant-Id header: a team body
+        # has no tenant field. `instructions` is written onto the team's agent.
+        return self._request_op("POST", "/api/v1/teams", json=payload)
+
+    def update_team(self, team_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request_op("PUT", f"/api/v1/teams/{team_id}", json=payload)
+
+    def update_team_agent(self, team_id: int, instructions: str | None) -> dict[str, Any]:
+        """Set the team agent's persona; None or "" brings back the default."""
         return self._request_op(
-            "POST", "/api/v1/projects/roles", json=self._with_tenant(payload),
+            "PUT", f"/api/v1/teams/{team_id}/agent", json={"instructions": instructions},
         )
 
-    def update_role(self, role_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._request_op("PUT", f"/api/v1/projects/roles/{role_id}", json=payload)
-
-    def delete_role(self, role_id: int) -> Any:
-        return self._request_op("DELETE", f"/api/v1/projects/roles/{role_id}")
+    def delete_team(self, team_id: int) -> Any:
+        return self._request_op("DELETE", f"/api/v1/teams/{team_id}")

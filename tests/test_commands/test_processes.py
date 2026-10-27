@@ -43,10 +43,10 @@ class TestGet:
                 {"id": 10, "name": "Discovery", "order": 1, "project_type_id": 1},
             ]),
             get_process_rows=MagicMock(return_value=[{"id": 100, "phase_id": 10, "position": 1000.0}]),
-            list_roles=MagicMock(return_value=[{"id": 9, "name": "Engineer"}]),
+            list_teams=MagicMock(return_value=[{"id": 9, "name": "Engineering"}]),
             list_deliverable_types=MagicMock(return_value=[
                 {"id": 50, "name": "Spec", "phase_id": 10, "col_position": 1000.0,
-                 "owner_role_ids": [9], "dependency_ids": []},
+                 "owner_team_id": 9, "dependency_ids": []},
             ]),
             close=MagicMock(),
         )
@@ -58,7 +58,10 @@ class TestGet:
         assert phase["name"] == "Discovery"
         card = phase["deliverable_types"][0]
         assert card["name"] == "Spec"
-        assert card["owner_roles"][0]["name"] == "Engineer"
+        assert card["owner_team_id"] == 9
+        assert card["owner_team"] == {"id": 9, "name": "Engineering"}
+        assert data["teams"] == [{"id": 9, "name": "Engineering"}]
+        mock.list_roles.assert_not_called()
 
 
 class TestWrite:
@@ -97,29 +100,53 @@ class TestWrite:
         # create_deliverable_type resolved @ph -> 10
         assert mock.create_deliverable_type.call_args.args[0]["phase_id"] == 10
 
-    def test_set_owner_roles_by_name(self):
+    def test_set_owner_team_by_name(self):
         mock = MagicMock(
-            list_roles=MagicMock(return_value=[{"id": 9, "name": "Engineer"}]),
-            set_deliverable_type_owner_roles=MagicMock(return_value=None),
+            list_teams=MagicMock(return_value=[{"id": 9, "name": "Engineering"}]),
+            set_deliverable_type_owner_team=MagicMock(return_value=None),
             close=MagicMock(),
         )
-        ops = [{"op": "set_owner_roles", "type_id": 50, "role_names": ["Engineer"]}]
+        ops = [{"op": "set_owner_team", "type_id": 50, "team_name": "engineering"}]
         result = _run(["--format", "json", "processes", "write", "--ops", json.dumps(ops)], mock)
         assert result.exit_code == 0
-        mock.set_deliverable_type_owner_roles.assert_called_once_with(50, [9])
+        mock.set_deliverable_type_owner_team.assert_called_once_with(50, 9)
 
-    def test_set_owner_roles_unknown_name_errors(self):
+    def test_set_owner_team_by_id(self):
+        mock = MagicMock(set_deliverable_type_owner_team=MagicMock(return_value=None), close=MagicMock())
+        ops = [{"op": "set_owner_team", "type_id": 50, "team_id": 9}]
+        result = _run(["--format", "json", "processes", "write", "--ops", json.dumps(ops)], mock)
+        assert result.exit_code == 0
+        mock.set_deliverable_type_owner_team.assert_called_once_with(50, 9)
+        mock.list_teams.assert_not_called()
+
+    def test_set_owner_team_null_clears_the_owner(self):
+        mock = MagicMock(set_deliverable_type_owner_team=MagicMock(return_value=None), close=MagicMock())
+        ops = [{"op": "set_owner_team", "type_id": 50, "team_id": None}]
+        result = _run(["--format", "json", "processes", "write", "--ops", json.dumps(ops)], mock)
+        assert result.exit_code == 0
+        mock.set_deliverable_type_owner_team.assert_called_once_with(50, None)
+
+    def test_set_owner_team_unknown_name_lists_the_teams(self):
         mock = MagicMock(
-            list_roles=MagicMock(return_value=[{"id": 9, "name": "Engineer"}]),
-            set_deliverable_type_owner_roles=MagicMock(return_value=None),
+            list_teams=MagicMock(return_value=[{"id": 9, "name": "Engineering"}]),
+            set_deliverable_type_owner_team=MagicMock(return_value=None),
             close=MagicMock(),
         )
-        ops = [{"op": "set_owner_roles", "type_id": 50, "role_names": ["Ghost"]}]
+        ops = [{"op": "set_owner_team", "type_id": 50, "team_name": "Ghost"}]
         result = _run(["--format", "json", "processes", "write", "--ops", json.dumps(ops)], mock)
         assert result.exit_code != 0
-        data = json.loads(result.output)
-        assert data["ops"][0]["error_code"] == "unknown_role"
-        mock.set_deliverable_type_owner_roles.assert_not_called()
+        op = json.loads(result.output)["ops"][0]
+        assert op["error_code"] == "unknown_team"
+        assert "Engineering" in op["fix_hint"]
+        mock.set_deliverable_type_owner_team.assert_not_called()
+
+    def test_set_owner_roles_points_to_set_owner_team(self):
+        """A deliverable type now has exactly one owning team."""
+        mock = MagicMock(close=MagicMock())
+        ops = [{"op": "set_owner_roles", "type_id": 50, "role_names": ["Engineer"]}]
+        result = _run(["processes", "write", "--ops", json.dumps(ops)], mock)
+        assert result.exit_code != 0
+        assert "set_owner_team" in result.output
 
     def test_delete_process_in_use_guard(self):
         mock = MagicMock(
